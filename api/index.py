@@ -16,7 +16,13 @@ def get_download_link():
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
         'quiet': True,
-        'no_warnings': True
+        'no_warnings': True,
+        # YouTube Bot Block bypass karne ke liye iOS/Android client parameters:
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android']
+            }
+        }
     }
 
     try:
