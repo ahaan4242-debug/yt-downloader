@@ -1,9 +1,14 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import yt_dlp
+import requests
 
 app = Flask(__name__)
 CORS(app)
+
+def extract_video_id(url):
+    import re
+    match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
+    return match.group(1) if match else None
 
 @app.route('/download', methods=['POST'])
 def get_download_link():
@@ -13,32 +18,33 @@ def get_download_link():
     if not video_url:
         return jsonify({'error': 'URL is required'}), 400
 
-    ydl_opts = {
-        'format': 'best[ext=mp4]/best',
-        'quiet': True,
-        'no_warnings': True,
-        # YouTube Bot Block bypass karne ke liye iOS/Android client parameters:
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android']
-            }
-        }
-    }
+    video_id = extract_video_id(video_url)
+    if not video_id:
+        return jsonify({'error': 'Invalid YouTube URL'}), 400
 
+    # Cobalt / Public Engine API Endpoint
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=False)
+        api_res = requests.post(
+            'https://api.cobalt.tools/api/json',
+            headers={
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            json={'url': video_url}
+        )
+        res_data = api_res.json()
+
+        if 'url' in res_data:
             return jsonify({
-                'title': info.get('title'),
-                'download_url': info.get('url'),
-                'thumbnail': info.get('thumbnail')
+                'title': 'YouTube Video',
+                'download_url': res_data['url'],
+                'thumbnail': f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
             })
+        else:
+            return jsonify({'error': 'Unable to fetch stream from API'}), 500
+            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Vercel Serverless Function Handle
 def handler(event, context):
     return app(event, context)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
